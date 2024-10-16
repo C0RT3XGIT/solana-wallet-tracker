@@ -12,7 +12,7 @@ import {
 import * as fs from "fs";
 
 async function main() {
-  const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+  const connection = new Connection(clusterApiUrl("mainnet-beta"), "confirmed");
 
   const keypairFile = "keypair3.json";
   const secretKey = Uint8Array.from(

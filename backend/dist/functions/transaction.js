@@ -36,7 +36,7 @@ const web3_js_1 = require("@solana/web3.js");
 const fs = __importStar(require("fs"));
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
-        const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)("devnet"), "confirmed");
+        const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)("mainnet-beta"), "confirmed");
         const keypairFile = "keypair3.json";
         const secretKey = Uint8Array.from(JSON.parse(fs.readFileSync(keypairFile, "utf8")));
         const payer = web3_js_1.Keypair.fromSecretKey(secretKey);

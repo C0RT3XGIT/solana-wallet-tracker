@@ -12,7 +12,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@metaplex-foundation/mpl-token-metadata": "^2.0.0",
     "@prisma/client": "^5.18.0",
+    "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.3",
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
@@ -28,10 +30,11 @@
     "json2csv": "^6.0.0-alpha.2",
     "nodemailer": "^6.9.14",
     "nodemon": "^3.1.4",
-    "prisma": "^5.18.0",
-    "ts-node": "^10.9.2"
+    "prisma": "^5.18.0"
   },
   "devDependencies": {
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.4"
   }
 }

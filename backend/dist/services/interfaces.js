@@ -1,0 +1,9 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TOKEN_TRANSFER_CHANGE_TYPE = void 0;
+var TOKEN_TRANSFER_CHANGE_TYPE;
+(function (TOKEN_TRANSFER_CHANGE_TYPE) {
+    TOKEN_TRANSFER_CHANGE_TYPE["DECREASE"] = "dec";
+    TOKEN_TRANSFER_CHANGE_TYPE["INCREASE"] = "inc";
+    TOKEN_TRANSFER_CHANGE_TYPE["UNCHANGED"] = "unchanged";
+})(TOKEN_TRANSFER_CHANGE_TYPE || (exports.TOKEN_TRANSFER_CHANGE_TYPE = TOKEN_TRANSFER_CHANGE_TYPE = {}));

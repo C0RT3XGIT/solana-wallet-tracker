@@ -12,11 +12,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteWallet = exports.deleteAllTransactions = exports.getWalletTransactions = exports.updateMonitoring = exports.addWallet = exports.getWallets = void 0;
+exports.deleteAllWallets = exports.deleteWallet = exports.deleteAllTransactions = exports.getWalletTransactions = exports.updateMonitoring = exports.addWallet = exports.getWallets = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
-const sendMail_1 = __importDefault(require("../mail/sendMail"));
+// import sendMail from "../mail/sendMail";
+// import parse from "json2csv"
+const config_1 = require("../config");
 const web3_js_1 = require("@solana/web3.js");
+const transactionsService_1 = __importDefault(require("../services/transactionsService"));
 const activeConnections = new Map();
 const getWallets = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const wallets = yield prisma_1.default.wallet.findMany();
@@ -32,9 +35,8 @@ const getWalletTransactions = (0, express_async_handler_1.default)((req, res) =>
         yield prisma_1.default.wallet.create({
             data: { wallet_id: walletId, email: "tanishmajumdar2912@gmai.com" },
         });
-        const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)("devnet"), "confirmed");
         const publicKey = new web3_js_1.PublicKey(walletId);
-        const signatures = yield connection.getSignaturesForAddress(publicKey, {
+        const signatures = yield config_1.rpcConnection.getSignaturesForAddress(publicKey, {
             limit: 100,
         });
         if (signatures.length === 0) {
@@ -45,14 +47,14 @@ const getWalletTransactions = (0, express_async_handler_1.default)((req, res) =>
         let transactions1 = [];
         const transactions = yield Promise.all(signatures.map((signature) => __awaiter(void 0, void 0, void 0, function* () {
             var _a, _b, _c, _d;
-            const transaction = yield connection.getParsedTransaction(signature.signature, {
+            const transaction = yield config_1.rpcConnection.getParsedTransaction(signature.signature, {
                 commitment: "confirmed",
                 maxSupportedTransactionVersion: 0,
             });
             transactions1.push(transaction);
             const transactionDetails = 
             // @ts-ignore
-            ((_b = (_a = transaction.transaction.message.instructions[2]) === null || _a === void 0 ? void 0 : _a.parsed) === null || _b === void 0 ? void 0 : _b.info) || ((_d = (_c = transaction.transaction.message.instructions[0]) === null || _c === void 0 ? void 0 : _c.parsed) === null || _d === void 0 ? void 0 : _d.info);
+            ((_b = (_a = transaction === null || transaction === void 0 ? void 0 : transaction.transaction.message.instructions[2]) === null || _a === void 0 ? void 0 : _a.parsed) === null || _b === void 0 ? void 0 : _b.info) || ((_d = (_c = transaction === null || transaction === void 0 ? void 0 : transaction.transaction.message.instructions[0]) === null || _c === void 0 ? void 0 : _c.parsed) === null || _d === void 0 ? void 0 : _d.info);
             const transactionExists = yield prisma_1.default.transaction.findUnique({
                 where: { transaction_id: signature.signature },
             });
@@ -125,8 +127,26 @@ const addWallet = (0, express_async_handler_1.default)((req, res) => __awaiter(v
     res.json({ message: "Wallet added successfully." });
 }));
 exports.addWallet = addWallet;
+const getLatestTransactionDetails = (publicKey) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const latestTransactionSignature = yield transactionsService_1.default.latestTransaction(publicKey);
+        const transaction = yield transactionsService_1.default.transactionDetailsBySignature(latestTransactionSignature);
+        if (transaction) {
+            if ((_a = transaction.meta) === null || _a === void 0 ? void 0 : _a.err) {
+                console.log("Transaction failed. Skipping...");
+                return;
+            }
+            const tokenTransfers = yield transactionsService_1.default.tokenTransfersBySignature(latestTransactionSignature, publicKey);
+            console.log(tokenTransfers);
+        }
+    }
+    catch (error) {
+        console.error("Error processing transaction:", error);
+    }
+});
 const updateMonitoring = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)("devnet"), "confirmed");
+    console.log('Active Connections:', activeConnections);
     try {
         const wallets = yield prisma_1.default.wallet.findMany();
         if (wallets.length === 0) {
@@ -137,11 +157,11 @@ const updateMonitoring = (0, express_async_handler_1.default)((req, res) => __aw
             const publicKeyStr = wallet.wallet_id;
             if (!activeConnections.has(publicKeyStr)) {
                 const publicKey = new web3_js_1.PublicKey(publicKeyStr);
-                connection.onAccountChange(publicKey, (accountInfo) => {
+                const connectionId = config_1.rpcConnection.onAccountChange(publicKey, (accountInfo) => __awaiter(void 0, void 0, void 0, function* () {
                     console.log("Account data changed:", accountInfo.data);
-                    latestTransaction(connection, publicKey);
-                });
-                activeConnections.set(publicKeyStr, true);
+                    yield getLatestTransactionDetails(publicKey);
+                }), { commitment: "confirmed" });
+                activeConnections.set(publicKeyStr, connectionId);
                 console.log("Listening for changes to account:", publicKey.toBase58());
             }
         });
@@ -153,60 +173,6 @@ const updateMonitoring = (0, express_async_handler_1.default)((req, res) => __aw
     }
 }));
 exports.updateMonitoring = updateMonitoring;
-const latestTransaction = (connection, publicKey) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
-    try {
-        const signatures = yield connection.getSignaturesForAddress(publicKey, {
-            limit: 1,
-        });
-        if (signatures.length === 0) {
-            console.log("No transactions found.");
-            return;
-        }
-        const latestSignature = (_a = signatures[0]) === null || _a === void 0 ? void 0 : _a.signature;
-        const transaction = yield connection.getParsedTransaction(latestSignature, {
-            commitment: "confirmed",
-            maxSupportedTransactionVersion: 0,
-        });
-        if (!transaction) {
-            console.log("Transaction not found.");
-            return;
-        }
-        const transactionDetails = 
-        // @ts-ignore
-        ((_c = (_b = transaction.transaction.message.instructions[0]) === null || _b === void 0 ? void 0 : _b.parsed) === null || _c === void 0 ? void 0 : _c.info) || ((_e = (_d = transaction.transaction.message.instructions[2]) === null || _d === void 0 ? void 0 : _d.parsed) === null || _e === void 0 ? void 0 : _e.info);
-        if (!transactionDetails) {
-            console.log("Transaction details are missing.");
-            return;
-        }
-        const htmlContent = `
-      <p>Dear User,</p>
-      <p>A transaction has been completed on the Solana blockchain:</p>
-      <ul>
-        <li><strong>Sender Wallet:</strong> ${transactionDetails.source}</li>
-        <li><strong>Recipient Wallet:</strong> ${transactionDetails.destination}</li>
-        <li><strong>Amount Transferred:</strong> ${transactionDetails.lamports / web3_js_1.LAMPORTS_PER_SOL} SOL</li>
-      </ul>
-      <p>Best regards,<br>Your Blockchain Police</p>
-    `;
-        const email = "tanishmajumdar2912@gmail.com";
-        // @ts-ignore
-        (0, sendMail_1.default)(email, htmlContent);
-        yield prisma_1.default.transaction.create({
-            data: {
-                transaction_id: latestSignature,
-                wallet_id: transactionDetails.source,
-                destination_id: transactionDetails.destination,
-                amount: transactionDetails.lamports / web3_js_1.LAMPORTS_PER_SOL,
-            },
-        });
-        // @ts-ignore
-        addWallet({ body: { walletId: transactionDetails.destination, email: "tanishmajumdar2912@gmail.com" } }, { json: () => { } });
-    }
-    catch (error) {
-        console.error("Error processing transaction:", error);
-    }
-});
 const deleteAllTransactions = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     yield prisma_1.default.transaction.deleteMany();
     yield prisma_1.default.wallet.deleteMany();
@@ -223,9 +189,21 @@ const deleteWallet = (0, express_async_handler_1.default)((req, res) => __awaite
     yield prisma_1.default.wallet.delete({
         where: { wallet_id: walletId },
     });
-    res.json({ message: "Wallet deleted successfully." });
+    const connectionId = activeConnections.get(walletId);
+    console.log(connectionId);
+    if (connectionId) {
+        config_1.rpcConnection.removeAccountChangeListener(connectionId);
+        activeConnections.delete(walletId);
+    }
+    res.json({ message: "Wallet deleted successfully. Connection removed." });
 }));
 exports.deleteWallet = deleteWallet;
+const deleteAllWallets = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    yield prisma_1.default.transaction.deleteMany();
+    yield prisma_1.default.wallet.deleteMany();
+    res.json({ message: "All wallets deleted." });
+}));
+exports.deleteAllWallets = deleteAllWallets;
 const addSuspect = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { walletId } = req.body;
     const wallet = yield prisma_1.default.wallet.findUnique({
