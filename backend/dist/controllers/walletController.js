@@ -46,15 +46,24 @@ const getWalletTransactions = (0, express_async_handler_1.default)((req, res) =>
         // @ts-ignore
         let transactions1 = [];
         const transactions = yield Promise.all(signatures.map((signature) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a, _b, _c, _d;
+            var _a;
             const transaction = yield config_1.rpcConnection.getParsedTransaction(signature.signature, {
                 commitment: "confirmed",
                 maxSupportedTransactionVersion: 0,
             });
             transactions1.push(transaction);
-            const transactionDetails = 
-            // @ts-ignore
-            ((_b = (_a = transaction === null || transaction === void 0 ? void 0 : transaction.transaction.message.instructions[2]) === null || _a === void 0 ? void 0 : _a.parsed) === null || _b === void 0 ? void 0 : _b.info) || ((_d = (_c = transaction === null || transaction === void 0 ? void 0 : transaction.transaction.message.instructions[0]) === null || _c === void 0 ? void 0 : _c.parsed) === null || _d === void 0 ? void 0 : _d.info);
+            let transactionDetails;
+            const instructions = transaction === null || transaction === void 0 ? void 0 : transaction.transaction.message.instructions;
+            if (instructions && instructions.length > 0) {
+                const instruction = instructions[2] || instructions[0];
+                if ("parsed" in instruction) {
+                    transactionDetails = (_a = instruction.parsed) === null || _a === void 0 ? void 0 : _a.info;
+                }
+            }
+            if (!transactionDetails) {
+                console.log("Unable to parse transaction details");
+                return null;
+            }
             const transactionExists = yield prisma_1.default.transaction.findUnique({
                 where: { transaction_id: signature.signature },
             });
@@ -146,7 +155,7 @@ const getLatestTransactionDetails = (publicKey) => __awaiter(void 0, void 0, voi
     }
 });
 const updateMonitoring = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Active Connections:', activeConnections);
+    console.log("Active Connections:", activeConnections);
     try {
         const wallets = yield prisma_1.default.wallet.findMany();
         if (wallets.length === 0) {
@@ -160,7 +169,8 @@ const updateMonitoring = (0, express_async_handler_1.default)((req, res) => __aw
                 const connectionId = config_1.rpcConnection.onAccountChange(publicKey, (accountInfo) => __awaiter(void 0, void 0, void 0, function* () {
                     console.log("Account data changed:", accountInfo.data);
                     yield getLatestTransactionDetails(publicKey);
-                }), { commitment: "confirmed" });
+                }), "confirmed" // Pass the commitment directly as a string
+                );
                 activeConnections.set(publicKeyStr, connectionId);
                 console.log("Listening for changes to account:", publicKey.toBase58());
             }

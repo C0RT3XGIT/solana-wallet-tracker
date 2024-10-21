@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getTokenAndSolBalanceBySignature = exports.getTokenDetailsByMint = exports.getTokenTransfersBySignature = exports.getTransactionDetailsBySignature = void 0;
+exports.getTokenAndSolBalanceBySignature = exports.getTokenTransfersBySignature = exports.getTransactionDetailsBySignature = void 0;
 const express_async_handler_1 = __importDefault(require("express-async-handler"));
 const transactionsService_1 = __importDefault(require("../services/transactionsService"));
 const web3_js_1 = require("@solana/web3.js");
@@ -32,17 +32,12 @@ const getTokenTransfersBySignature = (0, express_async_handler_1.default)((req, 
     catch (err) {
         const error = err;
         console.error("Error getting token transfers:", err);
-        res.status(500).json({ error: "Internal server error", message: error.message });
+        res
+            .status(500)
+            .json({ error: "Internal server error", message: error.message });
     }
 }));
 exports.getTokenTransfersBySignature = getTokenTransfersBySignature;
-const getTokenDetailsByMint = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { mint } = req.body;
-    const publicKey = new web3_js_1.PublicKey(mint);
-    const tokenDetails = yield transactionsService_1.default.getTokenDetails(publicKey);
-    res.json(tokenDetails);
-}));
-exports.getTokenDetailsByMint = getTokenDetailsByMint;
 const getTokenAndSolBalanceBySignature = (0, express_async_handler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { signature } = req.body;
     const tokenAndSolBalance = yield transactionsService_1.default.tokenAndSolBalanceBySignature(signature);

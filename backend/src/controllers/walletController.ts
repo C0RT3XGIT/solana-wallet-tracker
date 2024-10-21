@@ -3,15 +3,10 @@ import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 // import sendMail from "../mail/sendMail";
 // import parse from "json2csv"
-import { rpcConnection } from '../config';
+import { rpcConnection } from "../config";
 
-import {
-  Connection,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-} from '@solana/web3.js';
-import TransactionsService from '../services/transactionsService';
-import { log } from "console";
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import TransactionsService from "../services/transactionsService";
 
 interface ActiveConnection {
   walletId: string;
@@ -36,9 +31,12 @@ const getWalletTransactions = asyncHandler(
         data: { wallet_id: walletId, email: "tanishmajumdar2912@gmai.com" },
       });
       const publicKey = new PublicKey(walletId);
-      const signatures = await rpcConnection.getSignaturesForAddress(publicKey, {
-        limit: 100,
-      });
+      const signatures = await rpcConnection.getSignaturesForAddress(
+        publicKey,
+        {
+          limit: 100,
+        }
+      );
       if (signatures.length === 0) {
         console.log("No transactions found.");
         return;
@@ -55,12 +53,24 @@ const getWalletTransactions = asyncHandler(
             }
           );
           transactions1.push(transaction);
-          const transactionDetails =
-            // @ts-ignore
-            transaction?.transaction.message.instructions[2]?.parsed?.info || transaction?.transaction.message.instructions[0]?.parsed?.info
+
+          let transactionDetails;
+          const instructions = transaction?.transaction.message.instructions;
+          if (instructions && instructions.length > 0) {
+            const instruction = instructions[2] || instructions[0];
+            if ("parsed" in instruction) {
+              transactionDetails = instruction.parsed?.info;
+            }
+          }
+
+          if (!transactionDetails) {
+            console.log("Unable to parse transaction details");
+            return null;
+          }
+
           const transactionExists = await prisma.transaction.findUnique({
             where: { transaction_id: signature.signature },
-          })
+          });
           if (transactionExists) {
             return {
               wallet_id: transactionDetails.source,
@@ -153,23 +163,30 @@ const addWallet = asyncHandler(async (req: Request, res: Response) => {
 
 const getLatestTransactionDetails = async (publicKey: PublicKey) => {
   try {
-    const latestTransactionSignature = await TransactionsService.latestTransaction(publicKey);
-    const transaction = await TransactionsService.transactionDetailsBySignature(latestTransactionSignature);
+    const latestTransactionSignature =
+      await TransactionsService.latestTransaction(publicKey);
+    const transaction = await TransactionsService.transactionDetailsBySignature(
+      latestTransactionSignature
+    );
     if (transaction) {
       if (transaction.meta?.err) {
         console.log("Transaction failed. Skipping...");
         return;
       }
-      const tokenTransfers = await TransactionsService.tokenTransfersBySignature(latestTransactionSignature, publicKey);
-      console.log(tokenTransfers)
+      const tokenTransfers =
+        await TransactionsService.tokenTransfersBySignature(
+          latestTransactionSignature,
+          publicKey
+        );
+      console.log(tokenTransfers);
     }
   } catch (error) {
     console.error("Error processing transaction:", error);
   }
-}
+};
 
 const updateMonitoring = asyncHandler(async (req: Request, res: Response) => {
-  console.log('Active Connections:', activeConnections)
+  console.log("Active Connections:", activeConnections);
 
   try {
     const wallets = await prisma.wallet.findMany();
@@ -181,16 +198,18 @@ const updateMonitoring = asyncHandler(async (req: Request, res: Response) => {
       const publicKeyStr = wallet.wallet_id;
       if (!activeConnections.has(publicKeyStr)) {
         const publicKey = new PublicKey(publicKeyStr);
-        const connectionId = rpcConnection.onAccountChange(publicKey, async (accountInfo) => {
-          console.log("Account data changed:", accountInfo.data);
-         await getLatestTransactionDetails(publicKey);
-        }, { commitment: "confirmed" });
+        const connectionId = rpcConnection.onAccountChange(
+          publicKey,
+          async (accountInfo) => {
+            console.log("Account data changed:", accountInfo.data);
+            await getLatestTransactionDetails(publicKey);
+          },
+          "confirmed" // Pass the commitment directly as a string
+        );
         activeConnections.set(publicKeyStr, connectionId);
         console.log("Listening for changes to account:", publicKey.toBase58());
       }
     });
-
-    
 
     res.json({ message: "Monitoring started for all wallets." });
   } catch (error) {
@@ -198,7 +217,6 @@ const updateMonitoring = asyncHandler(async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to start monitoring." });
   }
 });
-
 
 const deleteAllTransactions = asyncHandler(
   async (req: Request, res: Response) => {
@@ -219,7 +237,7 @@ const deleteWallet = asyncHandler(async (req: Request, res: Response) => {
     where: { wallet_id: walletId },
   });
   const connectionId = activeConnections.get(walletId);
-  console.log(connectionId)
+  console.log(connectionId);
   if (connectionId) {
     rpcConnection.removeAccountChangeListener(connectionId);
     activeConnections.delete(walletId);
@@ -228,7 +246,7 @@ const deleteWallet = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const deleteAllWallets = asyncHandler(async (req: Request, res: Response) => {
-  await prisma.transaction.deleteMany()
+  await prisma.transaction.deleteMany();
   await prisma.wallet.deleteMany();
   res.json({ message: "All wallets deleted." });
 });
@@ -257,8 +275,6 @@ const addSuspect = asyncHandler(async (req: Request, res: Response) => {
   res.json({ message: "Suspect already exists." });
 });
 
-
-
 export {
   getWallets,
   addWallet,
@@ -266,5 +282,5 @@ export {
   getWalletTransactions,
   deleteAllTransactions,
   deleteWallet,
-  deleteAllWallets
+  deleteAllWallets,
 };
